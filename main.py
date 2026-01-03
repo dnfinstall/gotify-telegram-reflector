@@ -1,103 +1,83 @@
-from aiogram import Bot, Dispatcher, dispatcher, executor, types, md
-from aiogram.utils.emoji import emojize
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import CommandStart
+from settings import config
 import logging
 import asyncio
 import websockets
-import requests
 import json
-import os
+import signal
+import sys
 
-GOTIFY_URL = os.environ.get('GOTIFY_URL')
-GOTIFY_PORT = os.environ.get('GOTIFY_PORT')
-APP_TOKEN = os.environ.get('GOTIFY_APP_TOKEN')
-CLIENT_TOKEN = os.environ.get('GOTIFY_CLIENT_TOKEN')
-TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
-CHAT_ID = os.environ.get('TELEGRAM_CHAT_ID')
 
-logging.basicConfig(level=logging.INFO)
+# Service Methods
 
-telegram_bot = Bot(token=TELEGRAM_TOKEN)
-dispatcher = Dispatcher(telegram_bot)
+
+def sigterm_handler(sig, frame):
+    logging.info(f"Received signal {sig}. Exiting gracefully...")
+    sys.exit(0)
+
+
+signal.signal(signal.SIGTERM, sigterm_handler)
+dispatcher = Dispatcher()
 
 
 # Gotify Web Socket Methods
 
-async def message_handler(websocket) -> None:
-    async for message in websocket:
-        logging.info(f"Message: {message}")
-        message = json.loads(message)
-        logging.info('Sending message: {} '.format(message))
-        await telegram_bot.send_message(CHAT_ID, "{}: {}".format(message['title'], message['message']))
 
-async def websocket_gotify(hostname: str, port: int, token: str) -> None:
-    logging.info('Starting Gotify Websocket...')
-    websocket_resource_url = f"wss://{hostname}:{port}/stream?token={token}"
+async def message_handler(websocket, bot: Bot) -> None:
+    async for message in websocket:
+        message = json.loads(message)
+        logging.info(f"Sending message: {message}")
+
+        if not config.GOTIFY_APPS or (
+            message["title"] in config.GOTIFY_APPS.split(",")
+        ):
+            await bot.send_message(
+                config.TELEGRAM_CHAT_ID,
+                f"{message["title"]}: {message["message"]}",
+            )
+
+
+async def websocket_gotify(bot: Bot) -> None:
+    logging.info("Starting Gotify Websocket...")
+    websocket_resource_url = f"{"wss" if config.GOTIFY_WS_SEC else "ws"}://{config.GOTIFY_URL}:{config.GOTIFY_PORT}/stream?token={config.GOTIFY_CLIENT_TOKEN}"
     async with websockets.connect(websocket_resource_url) as websocket:
-        logging.info("Connected to Gotify Websocket: {}:{}".format(GOTIFY_URL, GOTIFY_PORT))
-        await message_handler(websocket)
+        logging.info(
+            f"Connected to Gotify Websocket: {config.GOTIFY_URL}:{config.GOTIFY_PORT}"
+        )
+        await message_handler(websocket, bot)
 
 
 # Telegram Bot Methods
 
-@dispatcher.message_handler(commands=['start', 'help'])
+
+@dispatcher.message(CommandStart())
 async def send_welcome(message: types.Message):
-    """ Send a message when the command /start or /help is issued. """
-    logging.info('Welcome message to: @{}<{}>'.format(message.chat.username,message.chat.id))
+    """Send a message when the command /start is issued."""
+    logging.info(f"Welcome message to: @{message.chat.username}<{message.chat.id}>")
     await message.reply("Hi! \nI'm Gotify Bot")
 
 
-@dispatcher.message_handler(commands=['send'])
-async def send_notification(message: types.Message):
-    """ Send Notification to Gotify Server """
-    
-    await types.ChatActions.typing()
+async def main() -> None:
+    telegram_bot = Bot(token=config.TELEGRAM_TOKEN)
 
-    # Check if APP_TOKEN is defined
-    if APP_TOKEN != None:
-        url = "{}:{}/message?token={}".format(GOTIFY_URL, GOTIFY_PORT, APP_TOKEN)
-
-        resp = requests.post(url, json={
-            "message": 'Test message',
-            "priority": 10,
-            "title": 'test title'
-        })
-
-        logging.info('Gotify Notification Sent!. Response: {}'.format(resp))
-
-        await telegram_bot.send_message(message.chat.id, 'Gotify Sent!')
-    else:
-        logging.error('Gotify APP_TOKEN not defined')
-        
-        content = []
-        content.append(md.text(md.code('GOTIFY_APP_TOKEN'), ' not defined'))
-
-        await telegram_bot.send_message(message.chat.id, content)
+    gotify_task = asyncio.create_task(
+        websocket_gotify(
+            bot=telegram_bot,
+        )
+    )
+    bot_task = asyncio.create_task(
+        dispatcher.start_polling(telegram_bot, handle_signals=False)
+    )
+    await asyncio.gather(gotify_task, bot_task)
 
 
-@dispatcher.message_handler(commands=['about'])
-async def send_about(message: types.Message):
-    """ Send info about the bot """
-    await types.ChatActions.typing()    # Send typing... to user
-    
-    content = []
-    logging.info('Sending about to: @{}<{}>'.format(message.chat.username, message.chat.id))
-    content.append(md.text('Gotify Client for Telegram. Connected to:', md.code(GOTIFY_URL), ':check_mark: \nSource: ', md.italic('Github: gotify-telegram'), md.code('https://github.com/Raniita/gotify-telegram')))
+if __name__ == "__main__":
+    logging.basicConfig(
+        level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+    )
 
-    await telegram_bot.send_message(message.chat.id, emojize(md.text(*content)))
-
-
-@dispatcher.message_handler()
-async def echo(message: types.Message):
-    """ Echo the user message. """
-    await message.reply(message.text)
-
-
-if __name__ == '__main__':
-    loop = asyncio.new_event_loop()
-    asyncio.set_event_loop(loop)
-
-    loop.create_task(websocket_gotify(hostname=GOTIFY_URL,
-                                      port=GOTIFY_PORT, 
-                                      token=CLIENT_TOKEN))
-    loop.create_task(executor.start_polling(dispatcher, skip_updates=True))
-    loop.run_forever()
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logging.info("Bot stopped by user")
