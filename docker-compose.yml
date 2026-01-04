@@ -7,5 +7,7 @@ services:
     environment:
       - GOTIFY_URL=gotify.server
       - GOTIFY_CLIENT_TOKEN=654321
+      - GOTIFY_CLIENT_APP=123456abc
+      - GOTIFY_DENY_APPS=HA,Telegram
       - TELEGRAM_CHAT_ID=123456
       - TELEGRAM_TOKEN=123456789:AAsdfgsdfg-SDFHsdfhsdfhdsfh

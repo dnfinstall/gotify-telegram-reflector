@@ -7,6 +7,7 @@ import websockets
 import json
 import signal
 import sys
+import requests
 
 
 # Service Methods
@@ -59,6 +60,22 @@ async def send_welcome(message: types.Message):
     """Send a message when the command /start is issued."""
     logging.info(f"Welcome message to: @{message.chat.username}<{message.chat.id}>")
     await message.reply("Hi! \nI'm Gotify Bot")
+
+
+@dispatcher.message()
+async def back_reflect(message: types.Message):
+    """Reflect the user message to Gotify."""
+    url = f"{"https" if config.GOTIFY_HTTP_SEC else "http"}://{config.GOTIFY_URL}:{config.GOTIFY_PORT}/message?token={config.GOTIFY_CLIENT_APP}"
+    resp = requests.post(
+        url,
+        json={
+            "message": message.text,
+            "priority": 10,
+            "title": "Telegram",
+        },
+    )
+
+    logging.info(f"Gotify Notification Sent!. Response: {resp}")
 
 
 async def main() -> None:

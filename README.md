@@ -24,7 +24,8 @@ To run this project, you will need to add the following environment variables.
 | `GOTIFY_PORT` | `80`  | Gotify port |
 | `GOTIFY_WS_SEC` |  `True` | Using `WSS` or `WS` protocol for Gotify |
 | `GOTIFY_HTTP_SEC` |  `True` | Using `HTTPS` or `HTTP` protocol for Gotify |
-| `GOTIFY_DENY_APPS` |  `''` | List of deny Gotify Applications (empty for all apps allow). Example: `HA,Proxmox,Uptime-Kuma` |
+| `GOTIFY_DENY_APPS` |  `''` | List of deny Gotify Applications (empty for all apps allow). Example: `Telegram,Proxmox,Uptime-Kuma` |
 | `GOTIFY_CLIENT_TOKEN` |  `''` | Click `Create Client` in Gotify |
+| `GOTIFY_CLIENT_APP` |  `''` | Click `Create Application` in Gotify |
 | `TELEGRAM_TOKEN` |  `''` | Create with __@BotFather__ |
 | `TELEGRAM_CHAT_ID` |  `''` | Start bot, send any message and run `curl https://api.telegram.org/botTELEGRAM_TOKEN/getUpdates` |
