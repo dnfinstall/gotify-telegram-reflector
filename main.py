@@ -27,11 +27,14 @@ dispatcher = Dispatcher()
 async def message_handler(websocket, bot: Bot) -> None:
     async for message in websocket:
         message = json.loads(message)
-        logging.info(f"Sending message: {message}")
+        logging.info(f"Gotify message: {message}")
 
-        if not config.GOTIFY_APPS or (
-            message["title"] in config.GOTIFY_APPS.split(",")
+        if not config.GOTIFY_DENY_APPS or (
+            message["title"] not in config.GOTIFY_DENY_APPS.split(",")
         ):
+            logging.info(
+                f"Sending message to telegram: [{message["title"]}] {message["message"]}"
+            )
             await bot.send_message(
                 config.TELEGRAM_CHAT_ID,
                 f"{message["title"]}: {message["message"]}",
