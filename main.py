@@ -30,8 +30,8 @@ async def message_handler(websocket, bot: Bot) -> None:
         message = json.loads(message)
         logging.info(f"Gotify message: {message}")
 
-        if not config.GOTIFY_DENY_APPS or (
-            message["title"] not in config.GOTIFY_DENY_APPS.split(",")
+        if not config.GOTIFY_DENY_APPS or not any(
+            sub in message["title"] for sub in config.GOTIFY_DENY_APPS.split(",")
         ):
             logging.info(
                 f"Sending message to telegram: [{message["title"]}] {message["message"]}"
